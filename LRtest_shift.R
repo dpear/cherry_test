@@ -96,9 +96,7 @@ qplot(as.factor(n),log10(p+0.000000000001),data=t,geom="boxplot")+
 
 distances = read.table('distance.stat',sep =' ',header=T)
 unique(distances[c("ind1", "ind2")]) # 92 unique rows, so 92 replicates
-# distances$Rep is mislabeled, correct
-distances$Rep = expand.grid(seq(1,500),seq(1,92))$Var2
-
+distances$Rep = expand.grid(seq(1,500),seq(1,92))$Var2 # distances$Rep is mislabeled, correct
 
 test_results = function(data){
   
@@ -132,7 +130,6 @@ test_results = function(data){
   }
   return(outcomes)
 }
-
 test_results_bootstrap = function(data,nboot){
   
   outcomes = data.frame()
@@ -177,10 +174,6 @@ write.table(outcomes,'outcomes.txt',row.names = FALSE, col.names = TRUE)
 
 
 
-
-
-
-
 # ? 
 
 # the lambdas are normally distributed
@@ -189,12 +182,10 @@ plot(density((1/outcomes$lambda)^2))
 plot(density(outcomes$lambda[floor(runif(1000,1,length(outcomes$lambda)))]))
 # which is just amplified noise, seen from increasing # bootstraps 
 plot(density(outcomes$lambda[floor(runif(10000,1,length(outcomes$lambda)))]))
-
+# 1/variance
 sum((outcomes$lambda-mean(outcomes$lambda))^2)/length(outcomes)
-
 # the bootstrap sample dist has the same shape
 plot(density(outcomes_boot$lambda))
-
 # 1/variance
 sum((outcomes_boot$lambda-mean(outcomes_boot$lambda))^2)/length(outcomes_boot)
 
