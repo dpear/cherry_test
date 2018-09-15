@@ -102,15 +102,14 @@ test_results = function(data){
   
   outcomes = data.frame()
   
-  n_rep = length(unique(distances$Rep))
-  n_genes = nrow(distances)/length(unique(distances$Rep))
-  observations = nrow(distances)
+  n_genes = max(data$Gene)
+  observations = nrow(data)
   starts = seq(1,observations,by=n_genes)
   ends = seq(n_genes,observations,by=n_genes)
   
   for (i in 1:length(starts)){
 
-    this = distances[starts[i]:ends[i],]
+    this = data[starts[i]:ends[i],]
     out = tshift_data(this$distance)
     run = unique(this[c('Rep','ind1','ind2')])
     run$sp1 = strsplit(toString(run$ind1),'_')[[1]][1]
@@ -134,15 +133,14 @@ test_results_bootstrap = function(data,nboot){
   
   outcomes = data.frame()
   
-  n_rep = length(unique(distances$Rep))
-  n_genes = nrow(distances)/length(unique(distances$Rep))
-  observations = nrow(distances)
+  n_genes = max(data$Gene)
+  observations = nrow(data)
   starts = seq(1,observations,by=n_genes)
   ends = seq(n_genes,observations,by=n_genes)
   
   for (i in 1:length(starts)){
     
-    this = distances[starts[i]:ends[i],]
+    this = data[starts[i]:ends[i],]
     this_boot = this[floor(runif(nboot,1,501)),]
     out = tshift_data(this_boot$distance)
     run = unique(this[c('Rep','ind1','ind2')])
@@ -167,6 +165,22 @@ test_results_bootstrap = function(data,nboot){
 # compare: the significant p-values from bootstrap are much lower 
 outcomes = test_results(distances)
 outcomes_boot = test_results_bootstrap(distances,10000)
+
+# testing on the previously simulated data
+ds<-read.csv('sp.distance.stat',sep=" ",header=F)
+di<-read.csv('ind.distance.stat',sep=" ",header=F)
+
+names(ds) = c("Rep","Gene","ind1","ind2","distance")
+names(di) = c("Rep","Gene","ind1","ind2","distance")
+
+# both outcomes with the different species dataset fail to reject in some circumstances
+# the bootstrap is able to correct for all but the first replicate
+outcomes = test_results(ds)
+outcomes_boot = test_results_bootstrap(ds,10000)
+
+# both outcomes with the same species report true negatives for all circumstances
+outcomes = test_results(di)
+outcomes_boot = test_results_bootstrap(di,10000)
 
 write.table(outcomes,'outcomes.txt',row.names = FALSE, col.names = TRUE)
 
