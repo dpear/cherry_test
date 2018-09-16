@@ -1,12 +1,13 @@
 require(ggplot2)
 
-# In order to run the simulation, you must have a dataset with the following parameters
-# Relicate 
-# Gene 
-# individual 1: must indicate species and individual identifuer
-# individual 2 (can be from same or different species)
-# distance
+# In order to run tshift_data, you must have a dataset with the following parameters named as such
+# Rep: Replicate number 
+# Gene: Gene number 
+# ind1: must indicate species and individual identifier
+# ind2: can be from same or different species
+# distance: observed distances
 
+# ~~~~~~~~ SHIFT TEST FUNCTIONS ~~~~~~~~~~~
 tshift = function (tau,n,nsd,lambda=1) {
   # Function returns the p-value of the LRT of H0: tau = 0, H1: tau = tauH
   # where tauH is the MLE of tau
@@ -37,7 +38,6 @@ tshift = function (tau,n,nsd,lambda=1) {
     
     return(pval)
 }
-
 tshift_data = function (data) {
   # Function returns the p-value of the LRT of H0: tau = 0, H1: tau = tauH
   # where tauH is the MLE of tau
@@ -71,9 +71,10 @@ tshift_data = function (data) {
   return(c(pval,tauH,lambda))
 }
 
-r      = 100 # number of replicates per unique parameter combination
+# ~~~~~~~~ SIMULATIONS ~~~~~~~~~~~~~~~~
+r      = 100 # num replicates / unique parameter combo
 tau    = c(1,0.1,0.01,0.001,0)
-n      = 2^(4:11)#c(10,20,200,1000,10000)
+n      = 2^(4:11) 
 nsd    = c(0.1,0.01,0.001)
 lambda = 1
 
@@ -92,11 +93,14 @@ qplot(as.factor(n),log10(p+0.000000000001),data=t,geom="boxplot")+
 # interesting: if you vary lambda, it has no effect on the shape of the results
 
 
-# REAL DATA
+# ~~~~~~~~ REAL DATA ~~~~~~~~~~~~
 
-distances = read.table('distance.stat',sep =' ',header=T)
-unique(distances[c("ind1", "ind2")]) # 92 unique rows, so 92 replicates
-distances$Rep = expand.grid(seq(1,500),seq(1,92))$Var2 # distances$Rep is mislabeled, correct
+distances     = read.table('distance.stat',sep =' ',header=T)
+distances$Rep = expand.grid(seq(1,500),seq(1,92))$Var2 # distances$Rep is mislabeled (?), correct
+ds            = read.csv('sp.distance.stat',sep=" ",header=F)
+names(ds)     = c("Rep","Gene","ind1","ind2","distance")
+di            = read.csv('ind.distance.stat',sep=" ",header=F)
+names(di)     = c("Rep","Gene","ind1","ind2","distance")
 
 test_results = function(data){
   
@@ -166,13 +170,6 @@ test_results_bootstrap = function(data,nboot){
 outcomes = test_results(distances)
 outcomes_boot = test_results_bootstrap(distances,10000)
 
-# testing on the previously simulated data
-ds<-read.csv('sp.distance.stat',sep=" ",header=F)
-di<-read.csv('ind.distance.stat',sep=" ",header=F)
-
-names(ds) = c("Rep","Gene","ind1","ind2","distance")
-names(di) = c("Rep","Gene","ind1","ind2","distance")
-
 # both outcomes with the different species dataset fail to reject in some circumstances
 # the bootstrap is able to correct for all but the first replicate
 outcomes = test_results(ds)
@@ -182,6 +179,8 @@ outcomes_boot = test_results_bootstrap(ds,10000)
 outcomes = test_results(di)
 outcomes_boot = test_results_bootstrap(di,10000)
 
+
+# ~~~~~~~~~~ SAVING OUTCOMES ~~~~~~~~~~~~~
 write.table(outcomes,'outcomes.txt',row.names = FALSE, col.names = TRUE)
 
 
