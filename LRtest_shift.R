@@ -1,4 +1,5 @@
 require(ggplot2)
+library(dplyr)
 
 # In order to run tshift_data, you must have a dataset with the following parameters named as such
 # Rep: Replicate number 
@@ -47,11 +48,13 @@ tshift_data = function (data) {
   
   # 2)    Compute the MLE for lambda, tau under the alternative, MLE for lambda under the null
   #       https://math.stackexchange.com/questions/693070/shifted-exponential-distribution-and-mle
-  tauH    = max(min(exp1),0)
+  tauH    = max(min(exp1),0) #Max lik estimator
+  #tauH = mean(exp1)-sqrt(sum((mean(exp1)-exp1)^2)) #MOM estimator
   lambdaH = 1/mean(exp1-tauH)
   lambdaN = 1/mean(exp1)
   
   # 3)    LRT of H0: tau=0, H1: tau = tauH
+  #exp1=exp1[exp1>tauH]
   pdf0   = log( lambdaN*exp(-lambdaN*exp1) )
   pdf1   = log( lambdaH*exp(-lambdaH*(exp1-tauH)) )
   prod_0 = sum( pdf0[pdf1<=0] )
@@ -74,7 +77,7 @@ tshift_data = function (data) {
 # ~~~~~~~~ SIMULATIONS ~~~~~~~~~~~~~~~~
 r      = 100 # num replicates / unique parameter combo
 tau    = c(1,0.1,0.01,0.001,0)
-n      = 2^(4:11) 
+n      = 2^(1:8) 
 nsd    = c(0.1,0.01,0.001)
 lambda = 1
 
@@ -96,11 +99,20 @@ qplot(as.factor(n),log10(p+0.000000000001),data=t,geom="boxplot")+
 # ~~~~~~~~ REAL DATA ~~~~~~~~~~~~
 
 distances     = read.table('distance.stat',sep =' ',header=T)
-distances$Rep = expand.grid(seq(1,500),seq(1,92))$Var2 # distances$Rep is mislabeled (?), correct
 ds            = read.csv('sp.distance.stat',sep=" ",header=F)
-names(ds)     = c("Rep","Gene","ind1","ind2","distance")
 di            = read.csv('ind.distance.stat',sep=" ",header=F)
+same_species  = read.table('same-species.distance.stat',sep =' ',header=F) #BIG
+diff_species  = read.table('two-species.distance.stat',sep =' ',header=F) #small
+tau.stat = read.table('tau.stat',sep=' ',header=F)
+distances$Rep = expand.grid(seq(1,500),seq(1,92))$Var2 # distances$Rep is mislabeled (?), correct
+names(ds)     = c("Rep","Gene","ind1","ind2","distance")
 names(di)     = c("Rep","Gene","ind1","ind2","distance")
+names(same_species)  = c("Rep","Gene","ind1","ind2","distance")
+names(diff_species)  = c("Rep","Gene","ind1","ind2","distance")
+names(tau.stat)      = c("Rep","Gene","ind1","ind2","true_tau")
+tau.stat$ind1 = as.character(tau.stat$ind1)
+tau.stat$ind2 = as.character(tau.stat$ind2)
+tau.stat = unique(tau.stat[c('ind1','ind2','true_tau')])
 
 test_results = function(data){
   
@@ -178,6 +190,24 @@ outcomes_boot = test_results_bootstrap(ds,10000)
 # both outcomes with the same species report true negatives for all circumstances
 outcomes = test_results(di)
 outcomes_boot = test_results_bootstrap(di,10000)
+
+
+# ~~~~~~~~~~~ NEW SIMULATED DATASET ~~~~~~~~~~~~~~~~~~
+# poor performance on our new simulated dataset :(
+outcomes = test_results(diff_species)
+outcomes_boot = test_results_bootstrap(diff_species,10000)
+table(outcomes$class) # view counts of all classifications
+table(outcomes_boot$class) # view counts of all classifications from bootstrap
+new_outcomes = right_join(outcomes, tau.stat, by = c("sp1" = "ind1", "sp2" = "ind2"))
+par(mfrow= c(1,2))
+plot(p~tau,data=new_outcomes,main="estimated tau vs. p")
+plot(p~true_tau,data=new_outcomes,main = "true tau vs. p")
+
+
+#same_species is fine
+outcomes = test_results(same_species)
+outcomes_boot = test_results_bootstrap(same_species,10000)
+
 
 
 # ~~~~~~~~~~ SAVING OUTCOMES ~~~~~~~~~~~~~
