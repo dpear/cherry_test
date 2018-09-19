@@ -48,8 +48,8 @@ tshift_data = function (data) {
   
   # 2)    Compute the MLE for lambda, tau under the alternative, MLE for lambda under the null
   #       https://math.stackexchange.com/questions/693070/shifted-exponential-distribution-and-mle
-  tauH    = max(min(exp1),0) #Max lik estimator
-  #tauH = mean(exp1)-sqrt(sum((mean(exp1)-exp1)^2)) #MOM estimator
+  #tauH    = max(min(exp1),0) #Max lik estimator
+  tauH = mean(exp1) - sqrt(sum((mean(exp1)-exp1)^2)/length(exp1)) #MOM estimator
   lambdaH = 1/mean(exp1-tauH)
   lambdaN = 1/mean(exp1)
   
@@ -195,13 +195,22 @@ outcomes_boot = test_results_bootstrap(di,10000)
 # ~~~~~~~~~~~ NEW SIMULATED DATASET ~~~~~~~~~~~~~~~~~~
 # poor performance on our new simulated dataset :(
 outcomes = test_results(diff_species)
-outcomes_boot = test_results_bootstrap(diff_species,10000)
+#outcomes_boot = test_results_bootstrap(diff_species,10000)
 table(outcomes$class) # view counts of all classifications
 table(outcomes_boot$class) # view counts of all classifications from bootstrap
 new_outcomes = left_join(outcomes, tau.stat, by = c("sp1" = "ind1", "sp2" = "ind2"))
+head(new_outcomes)
+View(new_outcomes)
 par(mfrow= c(1,2))
 plot(p~tau,data=new_outcomes,main="estimated tau vs. p")
 plot(p~true_tau,data=new_outcomes,main = "true tau vs. p")
+# what is the noise term from the simulated data (presumably high?)
+# problem: estimating tau=0; will never reject if tau=0
+# even when tau is estimated to be small nonzero, our test still gives TP
+# problem: if we estimate tau to be .2 (lol why not) we get better results (?) BAD
+# this means we should test against != 0 
+# using method of moments produces way better results
+#     - discard all datapoints less than tau 
 
 
 #same_species is fine
