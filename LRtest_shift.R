@@ -198,7 +198,7 @@ outcomes = test_results(diff_species)
 outcomes_boot = test_results_bootstrap(diff_species,10000)
 table(outcomes$class) # view counts of all classifications
 table(outcomes_boot$class) # view counts of all classifications from bootstrap
-new_outcomes = right_join(outcomes, tau.stat, by = c("sp1" = "ind1", "sp2" = "ind2"))
+new_outcomes = left_join(outcomes, tau.stat, by = c("sp1" = "ind1", "sp2" = "ind2"))
 par(mfrow= c(1,2))
 plot(p~tau,data=new_outcomes,main="estimated tau vs. p")
 plot(p~true_tau,data=new_outcomes,main = "true tau vs. p")
