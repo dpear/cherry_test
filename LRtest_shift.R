@@ -20,10 +20,13 @@ names(ds)     = c("Rep","Gene","ind1","ind2","distance")
 names(di)     = c("Rep","Gene","ind1","ind2","distance")
 names(same_species)  = c("Rep","Gene","ind1","ind2","distance")
 names(diff_species)  = c("Rep","Gene","ind1","ind2","distance")
-names(tau.stat)      = c("Rep","Gene","ind1","ind2","true_tau")
+names(tau.stat)      = c("Rep","-","ind1","ind2","true_tau")
 tau.stat$ind1 = as.character(tau.stat$ind1)
 tau.stat$ind2 = as.character(tau.stat$ind2)
-tau.stat      = unique(tau.stat[c('ind1','ind2','true_tau')])
+tau.stat      = unique(tau.stat[c('Rep','ind1','ind2','true_tau')])
+all           = rbind(diff_species,same_species)
+notnormalized = read.table('est.gt.distance.stat',sep=' ',header=F)
+names(notnormalized)  = c("Rep","Gene","ind1","ind2","distance")
 
 
 # ~~~~~~~~ SIMULATION ~~~~~~~~~~~~~~~~ (run shift test functions first)
@@ -76,12 +79,17 @@ tshift = function (tau,n,nsd,lambda=1) {
     
     return(pval)
 }
-tshift_data = function (exp1, q=F, mom_prune=F, mle_prune=F, prune=F) {
+tshift_data = function (exp1, q=F, mom_prune=F, mle_prune=F, prune=F, nest_prune=F, truncated=T) {
   # Function returns the p-value of the LRT of H0: tau = 0, H1: tau = tauH
   
   #     1) Compute the estimates for lambdaH, tauH under the alternative, MLE for lambdaN under the null using specified method
+  
+  # Using MLE's for all parameters; default
+  tauH    = max(min(exp1),0)
+  lambdaH = 1/mean(exp1-tauH)
+  lambdaN = 1/mean(exp1)
   # Using MOM of tau to remove points;
-  if (mom_prune!=F){
+  if (mle_prune!=F){
     tauH    = max(mean(exp1) - sqrt(sum((mean(exp1)-exp1)^2)/length(exp1)),0)
     exp1    = exp1[exp1>=tauH]
     tauH    = max(min(exp1),0) # then using MLE of tauH, lambdaN, lambdaH
@@ -89,7 +97,7 @@ tshift_data = function (exp1, q=F, mom_prune=F, mle_prune=F, prune=F) {
     lambdaN = 1/mean(exp1)
   }
   # Using MOM of tau to remove points; 
-  if (mle_prune!=F){
+  if (mom_prune!=F){
     tauH    = max(mean(exp1) - sqrt(sum((mean(exp1)-exp1)^2)/length(exp1)),0)
     exp1    = exp1[exp1>=tauH]
     tauH    = max(min(exp1),0) # then using MOM of tauH, lambdaN, lambdaH
@@ -115,23 +123,28 @@ tshift_data = function (exp1, q=F, mom_prune=F, mle_prune=F, prune=F) {
     lambdaH = 1/mean(exp1-tauH)
     lambdaN = 1/mean(exp1)
   }
-  
-  # Using MLE's for all parameters; default
-  tauH    = max(min(exp1),0)
-  lambdaH = 1/mean(exp1-tauH)
-  lambdaN = 1/mean(exp1)
+  # prune bottom <prune> of data before computing MOM
+  if (nest_prune!=F){
+    threshold = sort(exp1)[nest_prune*length(exp1)]
+    exp1 = exp1[exp1>threshold]
+    tauH    = max(mean(exp1) - sqrt(sum((mean(exp1)-exp1)^2)/length(exp1)),0)
+    lambdaH = sqrt(length(exp1)/sum((mean(exp1)-exp1)^2)) 
+    lambdaN = 1/mean(exp1)
+  }
   
   # 3)    LRT of H0: tau=0, H1: tau = tauH
-  #exp1=exp1[exp1>tauH]
   pdf0   = log( lambdaN*exp(-lambdaN*exp1) )
   pdf1   = log( lambdaH*exp(-lambdaH*(exp1-tauH)) )
   prod_0 = sum( pdf0 )
   prod_1 = sum( pdf1 )
   
-  # if the logliklihood of the null model is greater than the alternative, then we know we MUST reject
-  # interesting to note that this only happens once in the simulated data
-  # thinking about this in terms of ratios, this would be >1, then logged, then negated
-  # resulting in a negative test statistic
+  if (truncated==T){
+    pdf0   = log( lambdaN*exp(-lambdaN*exp1)/(1-exp(-lambdaN*2)) )
+    pdf1   = log( lambdaH*exp(-lambdaH*(exp1-tauH))/(1-exp(-lambdaH*(2-tauH))) )
+    prod_0 = sum( pdf0 )
+    prod_1 = sum( pdf1 )
+  }
+  
   if (prod_0> prod_1) {return(c(1,tauH,lambdaN))}
   if (tauH==0) {return(c(1,tauH,lambdaN))}
   
@@ -142,7 +155,7 @@ tshift_data = function (exp1, q=F, mom_prune=F, mle_prune=F, prune=F) {
   if (pval<.05){ lambda=lambdaH }
   return(c(pval,tauH,lambda))
 }
-test_results = function (data,nboot=F,q=F, mom_prune=F, mle_prune=F, prune=F){
+test_results = function (data,nboot=F,q=F, mom_prune=F, mle_prune=F, prune=F, nest_prune=F,truncated=F,pr_curve=F){
   
   outcomes = data.frame()
   
@@ -157,7 +170,7 @@ test_results = function (data,nboot=F,q=F, mom_prune=F, mle_prune=F, prune=F){
     
     this = data[starts[i]:ends[i],]
     if (nboot!=F){ this = this[floor(runif(nboot,1,n_genes+1)),]}
-    out        = tshift_data(this$distance,q, mom_prune, mle_prune, prune)
+    out        = tshift_data(this$distance,q, mom_prune, mle_prune, prune, nest_prune, truncated)
     run        = unique(this[c('Rep','ind1','ind2')])
     run$sp1    = strsplit(toString(run$ind1),'_')[[1]][1]
     run$sp2    = strsplit(toString(run$ind2),'_')[[1]][1]
@@ -176,7 +189,7 @@ test_results = function (data,nboot=F,q=F, mom_prune=F, mle_prune=F, prune=F){
     setTxtProgressBar(pb,i)
   }
   close(pb)
-  outcomes = left_join(outcomes, tau.stat, by = c("sp1" = "ind1", "sp2" = "ind2"))
+  outcomes = left_join(outcomes, tau.stat, by = c("sp1" = "ind1", "sp2" = "ind2","Rep"="Rep"))
   print(table(outcomes$class))
   return(outcomes)
 }
@@ -184,9 +197,68 @@ test_results = function (data,nboot=F,q=F, mom_prune=F, mle_prune=F, prune=F){
 
 # ~~~~~~~~~~~ NEW SIMULATED DATASET ~~~~~~~~~~~~~~~~~~
 # poor performance on our new simulated dataset :(
-outcomes = test_results(diff_species,prune = .05)
-ggplot(data=new_outcomes, aes(x=tau,y=true_tau,color=p))+geom_point(size=5) + scale_color_distiller(palette = "RdPu")
 
+ggplot(data=outcomes, aes(x=tau,y=true_tau,color=log(p+.000000001)))+geom_point(size=5) + scale_color_distiller(palette = "RdPu")
+n = nrow(outcomes)
+outcomes$prune = rep(pr,n)
+
+data = outcomes1
+pos = data.frame(scores=data[data$sp1!=data$sp2,]$p,labels=1)
+neg = data.frame(scores=data[data$sp1==data$sp2,]$p,labels=0)
+formatted = rbind(pos,neg)
+data.mm = mmdata(formatted$scores,formatted$labels)
+e=evalmod(data.mm)
+plot(e)
+
+pr=pr.curve(pos$p,neg$p,curve=TRUE)
+plot(pr)
+
+
+
+outcomes1 = test_results(all)
+outcomes2 = test_results(all,mom_prune = T)
+outcomes3 = test_results(all,mle_prune = T)
+outcomes4 = test_results(all,nest_prune = .05)
+outcomes5 = test_results(all,nest_prune = .1)
+outcomes6 = test_results(all,nest_prune = .08)
+
+outcomes1_n = test_results(notnormalized)
+outcomes2_n = test_results(notnormalized,mom_prune = T)
+outcomes3_n = test_results(notnormalized,mle_prune = T)
+outcomes4_n = test_results(notnormalized,nest_prune = .05)
+outcomes5_n = test_results(notnormalized,nest_prune = .1)
+outcomes6_n = test_results(notnormalized,nest_prune = .08)
+
+make_curve = function(data){ return(pr.curve(data[data$sp1!=data$sp2,]$p,data[data$sp1==data$sp2,]$p,curve=TRUE))}
+
+plot(make_curve(outcomes1))
+plot(make_curve(outcomes2))
+plot(make_curve(outcomes3))
+plot(make_curve(outcomes4))
+plot(make_curve(outcomes5))
+plot(make_curve(outcomes6))
+
+plot(make_curve(outcomes1_n))
+plot(make_curve(outcomes2_n))
+plot(make_curve(outcomes3_n))
+plot(make_curve(outcomes4_n))
+plot(make_curve(outcomes5_n))
+plot(make_curve(outcomes6_n))
+
+
+
+outcomes1$x = rep(1,nrow(outcomes1))
+outcomes2$x = rep(2,nrow(outcomes2))
+outcomes3$x = rep(3,nrow(outcomes3))
+outcomes4$x = rep(4,nrow(outcomes4))
+outcomes5$x = rep(5,nrow(outcomes5))
+outcomes6$x = rep(6,nrow(outcomes6))
+
+d = notnormalized[notnormalized$ind1=='163_0_4' & notnormalized$ind2=='80_0_3',]
+
+outcomes = rbind(outcomes1,outcomes2,outcomes3,outcomes4,outcomes5,outcomes6)
+
+ggplot(data=outcomes, aes(x=as.factor(x),y=true_tau-tau,color=log(p+.000000001)))+geom_boxplot() + scale_color_distiller(palette = "RdPu")
 
 head(new_outcomes)
 View(new_outcomes)
